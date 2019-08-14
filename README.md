@@ -1,3 +1,3 @@
-# Assignment 3: PathTracer
+# Path Tracer
 
 http://462cmu.github.io/asst3_pathtracer/
