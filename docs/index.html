@@ -1,0 +1,628 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>  
+    div.padded {  
+      padding-top: 0px;  
+      padding-right: 100px;  
+      padding-bottom: 0.25in;  
+      padding-left: 100px;  
+    }  
+  </style> 
+<title>Kevin Arias  |  CS 184</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+</head>
+<body>
+<br />
+<h1 align="middle">Assignment 3-2: PathTracer 2</h1>
+
+    <h2 align="middle">Kevin Arias, CS184-aga</h2>
+
+    <div class="padded">
+
+    <h2 align="middle">Overview</h2>
+
+    <p>In this assignment, I added some new features to the ray tracer made in the previous assignment. Whereas previously
+    we were concerned with our ability to simply render objects in various efficient ways, we now want to be able to
+    render a wider range of materials onto these scenes and objects and provide more realistic lighting and effects.
+    I first started by adding the ability to render mirror and glass objects in our scenes. Through the use of reflective and
+    refractive properties, I was able to create realistic and correctly-behaving mirror and glass objects. Next I implemented
+    the ability to now render microfacet materials which can allow for a wider range of material rendering including
+    glossy and diffuse material objects. Next, I implemented environment lighting which allowed me to give our objects and materials more
+    visually realistic lighting effects when placed in more lifelike and authentic environments through environment maps.
+    And finally, I added the feature to be able to change lens radii and focal distances in order to simulate
+    using a thin-lens camera model and create rendered images with camera-like focusing and depth of field effects. Overall
+    this project was quite interesting just like the last one because I now understand and appreciate many of the graphical concepts
+    that go into rendering a wider range of materials and producing life-like lighting. Its quite difficult to grasp at first
+    but the produced images created after completing this project are truly visually stunning.
+
+
+    </p>
+    <br>
+    <h2 align="middle">Part 1: Ray Generation and Intersection</h2>
+        <p>For the first part of the project, I had to implement mirror and glass models with both reflection and refraction.
+            I first had to implement mirror materials that took advantage of reflective properties. In the BSDF::reflect()
+            function, I had to reflect wo about the normal (0,0,1) and store that in wi. Next, I had to implement the
+            MirrorBSDF::sample_f() where I had to use my previously implemented reflect() function in order to properly
+            set my wi direction, set my pdf to 1, and return reflectance / abs_cos_theta(*wi). After this, I am now able
+            to render images that use reflective materials. Being able to implement glass material requires a little more
+            work in comparison. In the BSDF::refract() function, I use the concepts from Snell’s Law to refract wo and
+            store that result in wi. In order to do this, I check whether or not in this case I am entering or exiting
+            the non-air material and adjust my eta values accordingly which will then be used to properly assign the
+            values for wi:
+        </p>
+        <br>
+
+
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="images/wi_equations.png" width="600px" />
+                        <figcaption align="middle"><b>wi Equations</b></figcaption>
+                </tr>
+            </table>
+        </div>
+        <br>
+        <br>
+        <p>We must also make sure to check for the case where we have total internal reflection in which we just return
+            false and the wi remains unchanged. After, I had to implement the GlassBSDF::sample_f() function. The
+            easiest case to consider in this function is when total internal reflection occurs, in which we perform
+            the same steps as the previously implemented MirrorBSDF::sample_f() function. However, in any other case,
+            both reflection and refraction will occur but since we are limited to only returning one ray direction,
+            we will calculate Schlick’s reflection coefficient and use the resulting probability to determine whether
+            we will reflect or refract:</p>
+
+
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                        <img src="images/schlick.png" style="border:10px; margin:30px;" width="480px" />
+
+                        <figcaption align="middle"><b>Schlick's reflection coefficient R</b></figcaption>
+                </tr>
+            </table>
+        </div>
+        <br>
+        <p>Once we know whether we are reflecting or refracting, we set wi using the proper reflect or refract
+            function, set our corresponding pdf using our Schlick’s reflection coefficient, and return our calculated
+            Spectrum value (R * reflectance / abs_cos_theta(*wi) for reflection and (1-R) * transmittance /
+            abs_cos_theta(*wi) / eta^2 for refraction).
+        </p>
+        <p>Below are seven images, each of a pair of spheres (one made of a glass material and the other of a mirror
+            material) where each image is rendered with a different max_ray_depth value. Each image is rendered using
+            64 samples per pixel and 4 samples per light:
+        </p>
+        <br>
+        <br>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                        <img src="images/CBspheres_m0.png" width="480px" />
+                        <figcaption align="middle"><b>m = 0</b></figcaption>
+                    <td align="middle">
+                        <img src="images/CBspheres_m1.png" width="480px" />
+                        <figcaption align="middle"><b>m = 1</b></figcaption>
+                </tr>
+            </table>
+        </div>
+
+        <br>
+        <br>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                        <img src="images/CBspheres_m2.png" width="480px" />
+                        <figcaption align="middle"><b>m = 2</b></figcaption>
+                    <td align="middle">
+                        <img src="images/CBspheres_m3.png" width="480px" />
+                        <figcaption align="middle"><b>m = 3</b></figcaption>
+                </tr>
+            </table>
+        </div>
+
+        <br>
+        <br>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                        <img src="images/CBspheres_m4.png" width="480px" />
+                        <figcaption align="middle"><b>m = 4</b></figcaption>
+                    <td align="middle">
+                        <img src="images/CBspheres_m5.png" width="480px" />
+                        <figcaption align="middle"><b>m = 5</b></figcaption>
+                </tr>
+            </table>
+        </div>
+
+        <br>
+        <br>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                        <img src="images/CBspheres_m100.png" width="480px" />
+                        <figcaption align="middle"><b>m = 100</b></figcaption>
+
+                </tr>
+            </table>
+        </div>
+
+        <br>
+        <br>
+        <p>Now let us compare the differences between the images based on their max ray depth values. When we set our
+            max_ray_depth value to 0, our entire image is black and only the light source at the very top is visible.
+            This makes sense because none of the rays can be reflected or refracted yet since we are not allowing any
+            bounces. When we raise our max_ray_depth value to 1, the room becomes lit because of direct lighting but
+            our spheres remain black with no reflecting or refracting properties whatsoever. Once we set our
+            max_ray_depth value to 2, we begin to see the spheres experiencing some sort of proper behaviour.
+            The sphere on the left (mirror sphere) starts to show some reflective properties. What I noticed is
+            that the reflection we see on the mirror sphere seems to be a reflection that looks similar to the scene
+            from the previously rendered image when our max_ray_depth equalled 1. Notice that in the reflection the
+            ceiling seems to be completely black outside of the light source whereas in the actual scene the ceiling
+            is not black, and the sphere reflected on the mirror sphere seems to look dark as well. If we observe
+            the glass ball, it seems to be very dark and is actually performing a very small amount of reflective
+            properties. The max_ray_depth is not yet high enough in order for us to be able to see the full refractive
+            properties.  Now when we increase the max_ray_depth to 3, we start to see the beginning of proper
+            reflective and refractive behaviours in both our mirror and glass spheres. If we look closely at the mirror
+            sphere, we can still see that the glass ball in the reflection is still very dark when in reality the
+            actual glass sphere is beginning to exhibit refractive properties. Once the max_ray_depth is increased
+            to 4, we can see that the glass sphere is now being properly reflected on the mirror sphere, it is no
+            longer black. If we observe the area beneath the glass sphere, we can see that that area is beginning
+            to light up because the amount of bounces is now high enough to allow the light to exit the glass sphere
+            and thus light up the ground beneath it. When looking at the rendered image with a max_ray_depth of 5,
+            there does not seem to be any major differences in the behaviours of the spheres or any major visual
+            differences between this image and the previously rendered image when m equalled 4 outside of the fact that the
+            m=5 image seems to be a little noisier and there is an illuminated patch of light on the blue wall as a
+            result of the refraction of the glass sphere from the light source. When we raise the max_ray_depth value
+            to 100, we get a rendered image that basically ends up looking almost exactly the same as the previously
+            rendered image when our max_ray_depth value equalled 5.	</p>
+        <br>
+        <br>
+
+
+    <h2 align="middle">Part 2: Microfacet Materials</h2>
+    <p>In this part of the project, we are going to begin to implement the Microfacet model so that we can begin to
+        render Microfacet materials. The first three tasks of this part require us to implement the BRDF evaluation
+        function MicrofacetBSDF::f(). In order to implement this function, we must use and return the following equation
+        where n is the macro surface normal (0,0,1) and h is the half vector:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/brdf_evaluation.png" width="400px" />
+                    <figcaption align="middle"><b>BRDF Evaluation Function</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>The shadowing-masking term G was already provided to us but we had to implement the functions to calculate the
+        Fresnel term F and the normal distribution function D. I first began by implementing the normal distribution
+        function D. The NDF helps us define how the microfacets’ normals are distributed. In order to calculate the NDF,
+        we use the Beckmann distribution as shown below where alpha is the roughness of the macro surface, our theta
+        value is the angle between h and the macro surface normal n:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/ndf.png" width="350px" />
+                    <figcaption align="middle"><b>Normal Distribution Function</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>As we will see later through picture examples, changing the alpha values of a rendered image changes the visual
+        properties of the microfacet material: lower values of alpha tend to make the material look more glossy whereas
+        larger alpha values make the material look more diffuse. Then I began to implement the Fresnel term F. Because
+        calculating the Fresnel term for every possible wavelength could be very computationally expensive and complicated,
+        we record our eta and k scalar values at fixed wavelengths 614 nm (red), 549 nm (green) and 466 nm (blue) which
+        will be helpful for when we want to assign proper eta and k values for our object to appear to be made out of a
+        specific metal later on in the project. In order to calculate the Fresnel term, I used the following equations
+        provided to us in the spec where eta and k represent indices of refraction for conductos:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/fresnel.png" width="480px" />
+                    <figcaption align="middle"><b>Fresnel Term Equation</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p> We can now technically begin to render microfacet materials because we already have cosine hemisphere sampling
+        already implemented for us but we want a less noisy image and a sampling method more appropriate for Beckmann distribution
+        so I implemented the BRDF sampling function using importance sampling. First we must sample theta and phi values
+        using the inversion method (where r1 and r2 are random numbers within [0,1) ) and use these values to calculate the pdfs for the Beckmann NDF:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/inversion.png" width="450px" />
+                    <figcaption align="middle"><b>Inversion Method to get Theta and Phi</b></figcaption>
+                <td align="middle">
+                    <img src="images/sample_pdfs.png" width="450px" />
+                    <figcaption align="middle"><b>PDF Calculations</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>Using our sampled theta and phi values we can calculate our microfacet normal h and reflect wo according to h to
+        give us our sampled light incident direction wi. Then by using our previously calculated pdfs and h value, we
+        can calculate the final pdf of sampling wi with respect to the solid angle and use this in our previously
+        implemented BRDF evaluation function:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/h_pdf.png" width="400px" />
+                    <figcaption align="middle"><b>PDF of sampling h with respect to solid angle</b></figcaption>
+                <td align="middle">
+                    <img src="images/wi_pdf.png" width="400px" />
+                    <figcaption align="middle"><b>PDF of sampling wi with respect to solid angle</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>Below are four rendered images of CBdragon_microfacet_au.dae each using a different alpha value. Each image is
+        rendered using 128 samples per pixel, 1 sample per light, and a max ray depth value of 5:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/CBdragon_0.005.png" width="480px" />
+                    <figcaption align="middle"><b>alpha = 0.005</b></figcaption>
+                <td align="middle">
+                    <img src="images/CBdragon_0.05.png" width="480px" />
+                    <figcaption align="middle"><b>alpha = 0.05</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/CBdragon_0.25.png" width="480px" />
+                    <figcaption align="middle"><b>alpha = 0.25</b></figcaption>
+                <td align="middle">
+                    <img src="images/CBdragon_0.5.png" width="480px" />
+                    <figcaption align="middle"><b>alpha = 0.5</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>The changing of alpha values in the image above gave some pretty significant visual changes within the
+    objects in the rendered images above. When our alpha value is 0.005, we get a glossy looking dragon.
+    The image itself looks a little noisy on the dragon and even on the walls. Out of all of the images, this
+    dragon looks the darkest. When we increase the alpha value to 0.05, we get a pretty shiny golden dragon.
+    The dragon looks very glossy and is not as dark as that of the image with the alpha value of 0.005. However, this dragon
+    has a more significant amount of noise throughout the image in comparison to the previous dragon with alpha value of 0.005.
+    These first two images have the lowest alpha values and as a result tend to exhibit some slight mirror properties. If we
+    look at these two dragons we can see the red and blue walls being reflected on the bodies of the dragons and we
+    can also observe the light being reflected on the top halves of the dragons (this light reflection effect is more
+    noticeable on the dragon with alpha value 0.05 however). Now when we observe the dragon with an alpha value of
+    0.25, we can see that the dragon is beginning to lose the glossy visual properties seen previously.
+    We are beginning to have a dragon that looks like it is made of a slightly more diffuse material. We can also notice
+    that this image barely has any noise. If we look at our final image with an alpha value of 0.5, we get a dragon that
+    looks to be made of a very matte/diffuse material. We can see almost every small detail of the dragon including its scales
+    on the skin of its body and the ridges on its spine. The outside layer of the dragon looks rough as well. This image
+        was the one that appeared to have the least amount of noise.
+    </p>
+    <p>Below are two rendered images of CBbunny_microfacet_cu.dae each using a different sampling method. Each image
+        is rendered using 64 samples per pixel, 1 sample per light, and a max ray depth value of 5:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/CBbunny_microfacet_cu_cosine.png" width="480px" />
+                    <figcaption align="middle"><b>Cosine Hemisphere Sampling</b></figcaption>
+                <td align="middle">
+                    <img src="images/CBbunny_microfacet_importance.png" width="480px" />
+                    <figcaption align="middle"><b>Importance Sampling</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>The visual differences between the bunny renders using cosine hemisphere sampling and importance sampling are pretty significant.
+    Let us first look at our rendered image using cosine hemisphere sampling. The image itself looks quite noisy but when we
+    specifically look at the bunny, the material making up the bunny is pretty patchy and sporadic. The bunny is also
+    relatively dark. The way the bunny is currently rendered, it is pretty difficult for someone to know that the bunny
+    is copper. Now let us look at our rendered bunny using importance sampling. Similar to the render using cosine
+    hemisphere sampling, there is still some noise around the scene of the render but the difference here is that the
+    bunny itself in importance sampling has a significant amount of less noise in comparison. The bunny now looks a lot more
+    smoother and glossy and is no longer patchy. When we look at the bunny, we can now actually tell that the material
+    that makes up the bunny is copper.</p>
+    <p>Below are two different images each using some other conductor material. I changed the material of the bunny
+        to be aluminum and I changed the material of the dragon to be silver. Each image is rendered using 1024
+        samples per pixel, 4 sample per light, and a max ray depth value of 7:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/CBbunny_microfacet_1024.png" width="480px" />
+                    <figcaption align="middle"><b>Aluminum Bunny (alpha = 0.05)</b></figcaption>
+                <td align="middle">
+                    <img src="images/CBdragon_microfacet_silver1024.png" width="480px" />
+                    <figcaption align="middle"><b>Silver Dragon (alpha = 0.5)</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+
+    <p>The eta and k values used to render the aluminum bunny were: eta = <1.1927, 0.96169, 0.67049> and k = <7.0756, 6.3890, 5.4863></p>
+    <p>The eta and k values used to render the silver dragon were: eta = <0.15395, 0.14499, 0.13627> and k = <3.6675, 3.1824, 2.5194>
+    </p>
+    <br>
+    <h2 align="middle">Part 3: Environment Light</h2>
+
+    <p>In this part of the project we began to incorporate and implement environment lighting. In the real world,
+        incoming light comes from many different directions, there is rarely ever only one perfect light source.
+        What environment lighting helps us achieve in graphics is that it helps give our objects and materials more
+        visually realistic lighting effects when placed in more lifelike and authentic environments. In order to get
+        environment lighting in the project, we use two different sampling methods: uniform sampling and importance
+        sampling. I began by first implementing uniform sampling. In uniform sampling, we sample a random direction
+        on the sphere with uniform probability 1/(4*PI). We then use this random direction to be able to look up the
+        environment map’s radiance value in that sampled direction using bilinear interpolation. What we accomplish
+        with uniform sampling is that we generate a good amount of equally distributed samples that examine all
+        directions equally for incoming radiance values. As observed previously, uniform sampling works to achieve
+        correct lighting for the most part but a sampling method that is more effective is importance sampling. In
+        importance sampling, we bias our selection of sampled directions towards where the incoming radiance is the
+        strongest rather than uniformly choosing random directions. In the real world environment light sources are
+        most concentrated towards brighter light sources and we want to achieve this same effect in environment
+        lighting. In this implementation of importance sampling, we want to be able to give each pixel in the
+        environment map a probability based on the amount of flux passing through the solid angle it represents.
+        We do this by first computing the pdf for every pixel in the environment map and store all of these pixel
+        weights in the variable pdf_envmap. We then calculate the marginal and conditional distributions needed and
+        use these when sampling in order to sample pixels more effectively towards the greatest incoming radiances.
+        This way through importance sampling, we have our pdfs properly calculated to make sure that we are sampling
+        stronger radiances rather than randomly selecting directions to sample. As a result, we get rendered images
+        that have environment lighting.</p>
+
+    <p>The .exr file that I used for this part of the project was field.exr. The converted .jpg of field.exr is shown below:</p>
+
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/field.jpg" width="725px" />
+                    <figcaption align="middle"><b>field jpg</b></figcaption>
+
+            </tr>
+        </table>
+    </div>
+
+    <br>
+
+    <p>Below is my probability_debug.png file created when using field.exr:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/probability_debug.png" width="725px" />
+                    <figcaption align="middle"><b>probability_debug.png</b></figcaption>
+
+            </tr>
+        </table>
+    </div>
+
+    <br>
+
+    <p>Below are two rendered images of bunny_unlit.dae each using a different sampling method. Each image
+        is rendered using 4 samples per pixel, 64 samples per light, and a max ray depth value of 5:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/bunny_unlit_uniform.png" width="480px" />
+                    <figcaption align="middle"><b>Uniform Sampling</b></figcaption>
+                <td align="middle">
+                    <img src="images/bunny_unlit_importance.png" width="480px" />
+                    <figcaption align="middle"><b>Importance Sampling</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>The differences between the uniform sampling bunny render and the importance sampling render are not as apparent
+    here as in previous comparisons but the differences are still noticeable however. The bunny render
+    that uses uniform sampling happens to have a lot more noise around its face, ears, and a large area around its tail.
+    In these particular areas of the render, the surface of the material seems to be quite patchy and not so smooth.
+    Now when we compare this with the bunny render using importance sampling, we can see that those same areas that were
+    noisy in the uniform sampling render, are now much less noisy. These areas are now more smoother and provide
+    more clean and natural looking transitions when going from lighter areas of the bunny to slightly
+    darker areas of the bunny. So noise seems to be much less apparent here when comparing it to the bunny render
+    using uniform sampling.</p>
+    <p>Below are two rendered images of bunny_microfacet_cu_unlit.dae each using a different sampling method. Each image
+        is rendered using 4 samples per pixel, 64 samples per light, and a max ray depth value of 5:</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/bunny_microfacet_uniform.png" width="480px" />
+                    <figcaption align="middle"><b>Uniform Sampling</b></figcaption>
+                <td align="middle">
+                    <img src="images/bunny_microfacet_importance.png" width="480px" />
+                    <figcaption align="middle"><b>Importance Sampling</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>Now let us compare both microfacet bunny renders when we use uniform sampling and importance sampling. A lot of
+    the points used to describe the differences of the previous two renders persist to these microfacet bunny renders.
+    The microfacet bunny that uses uniform sampling has more noise in comparison to the bunny that uses importance sampling,
+    specifically around its face, ears, and around the tail. Because of the microfacet material it is a little more easy to
+    see the noise and patchy parts of the bunny. There also seems to be some noise around the edges of the bunny as well.
+    Even though there does seem to be some noise in this render, it is not severe enough to be able to prevent someone from
+    being able to identify the rendered object as being a bunny and consisting of copper properties.
+    Now when we look at the microfacet bunny rendered using importance sampling, we can see that those same areas that were
+    noisy and patchy in the uniformly sampled bunny are now significantly smoother, glossier, and transition more naturally in color in comparison.
+    However, in the importance sampled bunny, there does actually seem to be some slight noise around its edges similarly
+    to that of the uniformly sampled bunny but to a much less degree. So areas such as the face, ears, and tail look
+    a lot more realistic and natural for a copper material because of the lessened amount of noise there.</p>
+    <br>
+
+    <h2 align="middle">Part 4: Depth of Field</h2>
+    <br>
+
+    <p>Throughout the project so far, we have been using the pinhole camera model to help us render our images. With
+        ideal pinhole camera models, everything in the rendered images remains in focus. So previously in the project when we have rendered
+        images, if you look closely, everywhere in the image seems to be clearly rendered and in focus. Although this
+        looks very visually pleasing and crisp, this is not how real cameras work. Real cameras, and even human eyes,
+        are modeled as lenses and in this part of the project we simulate a thin-lens camera model in order to achieve
+        this depth of field effect and render more realistically behaving images we are accustomed to seeing and observing
+        every day. For the thin-lens camera model, we basically ignore the thickness of the lens but we reproduce the
+        refractive properties of a real lens. Contrary to pinhole camera models, thin-lens camera models no longer only
+        receive radiance from the center of the lens, they can receive radiance from any area on the thin lens. In
+        order to implement the thin-lens camera model, there were a few steps needed to accomplish our desired effect:</p>
+
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/lens_visual.png" width="480px" />
+                    <figcaption align="middle"><b>Thin Lens Visualization</b></figcaption>
+
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>First we start by generating a ray as if we were using a pinhole camera model such that it passes the center of
+        the thin lens and intersects the plane of focus (this will be the red line segment in the illustration above).
+        After doing this, we begin to incorporate our thin-lens camera model and uniformly sample a random point on the
+        lens. We then generate a ray that goes from this randomly sampled point on the thin lens in the direction towards
+        the previously calculated point of intersection of the plane of focus (this ray will be the blue line segment in
+        the illustration), this will give us the refraction visual element we desire to have for our thin-lens model.
+        Then we just provide our ray with the proper camera-to-world conversions and we can now properly simulate a thin
+        lens where we can now control our lens radius and focal distance to achieve realistic camera-type focal effects.</p>
+
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/CBdragon_microfacet_0.04_1.45.png" width="480px" />
+                    <figcaption align="middle"><b>Lens Radius = 0.04  Focal Distance = 1.45</b></figcaption>
+                <td align="middle">
+                    <img src="images/CBdragon_microfacet_0.04_1.8.png" width="480px" />
+                    <figcaption align="middle"><b>Lens Radius = 0.04  Focal Distance = 1.8</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/CBdragon_microfacet_0.04_2.35.png" width="480px" />
+                    <figcaption align="middle"><b>Lens Radius = 0.04  Focal Distance = 2.35</b></figcaption>
+                <td align="middle">
+                    <img src="images/CBdragon_microfacet_0.04_3.0.png" width="480px" />
+                    <figcaption align="middle"><b>Lens Radius = 0.04  Focal Distance = 3.0</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>
+    Each of the four images rendered above have the same lens radius but each have different focal distances.
+    The visual effects we get from solely changing the focal distance is quite interesting. When we use
+    a focal distance of 1.45 we can see that the dragon's mouth is the most in-focus and clear part of the entire image.
+    We can see the dragon's teeth and tongue very clearly. If we look at the dragon's body and even the wall behind him,
+    we can observe that those parts of the image seem to be out of focus and blurry, you can't really make out all of the fine details
+    on the tail for example. Now when we increase the focal distance to 1.8, we can see now that the dragon's claws and his front
+    chest are the most in-focus and clear. As a result we now lose some detail in the mouth and the tail and wall are still
+    out of focus and slightly blurry. As we increase the focal distance now to 2.35, the dragon's tail is focused and very detailed but now
+    the front of the dragon such as its face and chest are less detailed and more blurry. With a focal distance of 3.0, we can
+    now see that the entire dragon is out of focus and rather the corner of the wall is the part of the image that is most in focus
+    and clear. The pattern we see here with the four images with different depths is that the smaller the focal distance is, the more focused objects closer to the
+    camera will become and the bigger the focal distance becomes, the more focused objects farther away from the camera
+    will become.</p>
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/CBdragon_microfacet_0.01_1.7.png" width="480px" />
+                    <figcaption align="middle"><b>Lens Radius = 0.01  Focal Distance = 1.7</b></figcaption>
+                <td align="middle">
+                    <img src="images/CBdragon_microfacet_0.06_1.7.png" width="480px" />
+                    <figcaption align="middle"><b>Lens Radius = 0.06  Focal Distance = 1.7</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+
+    <br>
+    <div align="center">
+        <table style="width=100%">
+            <tr>
+                <td align="middle">
+                    <img src="images/CBdragon_microfacet_0.15_1.7.png" width="480px" />
+                    <figcaption align="middle"><b>Lens Radius = 0.15  Focal Distance = 1.7</b></figcaption>
+                <td align="middle">
+                    <img src="images/CBdragon_microfacet_0.24_1.7.png" width="480px" />
+                    <figcaption align="middle"><b>Lens Radius = 0.24  Focal Distance = 1.7</b></figcaption>
+            </tr>
+        </table>
+    </div>
+
+    <br>
+    <p>
+    The four images rendered above each have the same focal distance but now have different aperture sizes. The four
+    rendered images above are all focused on the same areas around the dragon's front chest. If we look at the
+    dragon with a lens radius of 0.01 we can see that the entire image seems to be focused. Since the lens radius is so
+    small, it is almost like we are rendering the scene using a pinhole camera model. Now when we increase the
+    lens radius to 0.06, we begin to see that the dragon's tail, the lower half of the dragon's body, and the walls
+    become slightly out of focus and blurry. However, the dragon's chest still remains in focus. Now when
+    the lens radius is increased to 0.15, we begin to see that everything outsied of the dragon's front chest begins to be
+    much more out of focus. Parts of the dragon such as its mouth, lower body, and tail become out of focus and the wall
+    becomes even more blurry. These same areas now have much less detail in comparison to the very detailed front chest of the dragon.  In the final render using a lens radius of 0.24, we see all of the
+    effects from the previous render are still present just to a much higher degree. The dragon's front chest remains in focus but
+    the rest of the image becomes very out of focus and blurry. If someone was not familiar with the shape of the lower
+    half of the dragon and saw this image alone, the viewer would not be able to tell the shape of that part of the dragon
+    because of how out of focus it is. The pattern we see here through the four pictures with different lens radii is that
+    the smaller the lens radius is, the more in-focus a wider spectrum of objects throughout the scene will be. The larger
+    the lens radius is, the more blurry and out of focus the rest of the scene outside of the main area of focus will become.</p>
+
+
+</div>
+</body>
+</html>
+
+
+
+
